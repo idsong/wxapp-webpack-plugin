@@ -140,10 +140,37 @@ export default class WXAppPlugin {
 		return context;
 	}
 
+	async getComponents(fileArr = [], pages) {
+		const patterns = pages
+			.map((resource) => `${resource}.json`);
+
+		const jsonfiles = await globby(patterns, {
+			cwd: this.base,
+			nodir: true,
+			realpath: true
+		});
+
+		for (let i = 0; i<jsonfiles.length; i++) {
+			const filepath = resolve(this.base, jsonfiles[i])
+			const {usingComponents = {}} = await readJson(filepath);
+
+			const lists = Object.keys(usingComponents).map(val => join('./component/**/', usingComponents[val])).map(val => val.replace(/\\/g, '/'));
+			lists.length >0 && lists.forEach(val => fileArr.push(val));
+			await this.getComponents(fileArr, lists);
+		}
+	}
+
 	async getEntryResource() {
 		const appJSONFile = resolve(this.base, 'app.json');
 		const { pages = [] } = await readJson(appJSONFile);
-		return ['app'].concat(pages);
+
+		let allComponents = [];
+		await this.getComponents(allComponents, pages);
+
+		const uniqueComponents = [...new Set(allComponents)];
+
+		return ['app'].concat([...pages, ...uniqueComponents]);
+		// return ['app'].concat(pages);
 	}
 
 	getFullScriptPath(path) {
